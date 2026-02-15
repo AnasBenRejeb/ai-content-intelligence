@@ -24,26 +24,9 @@ services:
       - key: MAX_WORKERS
         value: 5
 
-  # Background worker for article generation
-  - type: worker
-    name: article-generator
-    env: python
-    region: oregon
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python production_scheduler.py
-    autoDeploy: true
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.0
-      - key: NEWSAPI_KEY
-        sync: false
-      - key: GNEWS_API_KEY
-        sync: false
-
   # Cron job for scheduled generation (runs every 12 hours)
   - type: cron
-    name: article-cron
+    name: article-generator-cron
     env: python
     region: oregon
     schedule: "0 */12 * * *"
@@ -57,10 +40,5 @@ services:
         sync: false
       - key: GNEWS_API_KEY
         sync: false
-
-# Database (optional - for future use)
-databases:
-  - name: ai-content-db
-    databaseName: ai_content
-    user: ai_content_user
-    plan: free
+      - key: LOG_LEVEL
+        value: INFO
