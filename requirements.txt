@@ -1,0 +1,30 @@
+# Core dependencies
+requests>=2.31.0
+rapidfuzz>=3.5.2
+keybert>=0.8.3
+langdetect>=1.0.9
+sentence-transformers>=2.2.2
+
+# Agent framework
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Memory and storage
+chromadb>=0.4.22
+sqlalchemy>=2.0.23
+
+# Async support
+aiohttp>=3.9.1
+
+# Utilities
+python-dotenv>=1.0.0
+rich>=13.7.0
+tenacity>=8.2.3
+schedule>=1.2.0
+
+# Web framework
+Flask>=3.0.0
+gunicorn>=21.2.0
+
+# LLM (optional - for article generation)
+# llama-cpp-python>=0.2.0  # Commented out for free tier deployment

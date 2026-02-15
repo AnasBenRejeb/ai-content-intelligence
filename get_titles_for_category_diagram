@@ -1,0 +1,40 @@
+// get_titles_for_category
+digraph {
+	rankdir=TB
+	Start [label="Start: get_titles_for_category(query, max_pages=2)" color=black style=bold]
+	Init [label="Initialize empty list: titles = []" color=blue]
+	PageLoop [label="For each page in 1 to max_pages" color=green]
+	ConstructURL [label="Construct NewsAPI URL with query, page, PAGE_SIZE, API_KEY" color=blue]
+	SendRequest [label="Send GET request using requests.get(url)" color=blue]
+	ParseJSON [label="Parse JSON response: data = response.json()" color=blue]
+	CheckStatus [label="Check if data['status'] == 'ok'" color=red]
+	StatusFail [label="Print error message and break" color=red]
+	GetArticles [label="Extract articles list: articles = data.get('articles', [])" color=blue]
+	CheckArticles [label="If no articles: break" color=red]
+	ArticleLoop [label="For each article in articles" color=green]
+	GetTitle [label="Get article title: title = article.get(\"title\")" color=blue]
+	CheckTitle [label="If title exists and not in titles list" color=red]
+	DetectLang [label="Detect language using langdetect" color=red]
+	AppendTitle [label="Append title to titles list" color=blue]
+	ReturnTitles [label="Return titles list" color=black style=bold]
+	Start -> Init
+	Init -> PageLoop
+	PageLoop -> ConstructURL
+	ConstructURL -> SendRequest
+	SendRequest -> ParseJSON
+	ParseJSON -> CheckStatus
+	CheckStatus -> StatusFail [label="status != ok" color=red]
+	CheckStatus -> GetArticles [label="status == ok" color=green]
+	GetArticles -> CheckArticles [color=blue]
+	CheckArticles -> PageLoop [label="articles exist?" color=green style=dashed]
+	CheckArticles -> ReturnTitles [label="no articles" color=red]
+	PageLoop -> ArticleLoop [color=green]
+	ArticleLoop -> GetTitle [color=blue]
+	GetTitle -> CheckTitle [color=red]
+	CheckTitle -> DetectLang [label="valid title?" color=green]
+	CheckTitle -> ArticleLoop [label="invalid or duplicate" color=green style=dashed]
+	DetectLang -> AppendTitle [label="if English" color=blue]
+	DetectLang -> ArticleLoop [label="if not English" color=green style=dashed]
+	AppendTitle -> ArticleLoop [color=green]
+	PageLoop -> ReturnTitles [label="after all pages processed" color=black]
+}

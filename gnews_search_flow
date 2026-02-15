@@ -1,0 +1,47 @@
+// GNews Search Function Flow
+digraph {
+	rankdir=TB
+	Import [label="Import requests" color=black style=bold]
+	APIKey [label="Set GNEWS_API_KEY" color=blue]
+	GNEWSURL [label="Set GNEWS_URL = \"https://gnews.io/api/v4/search\"" color=blue]
+	FuncDef [label="Define function: search_gnews(query)" color=green]
+	Params [label="Prepare parameters dict:
+- q=query
+- lang=en
+- token=API_KEY
+- max=1" color=green]
+	TryBlock [label="Try:
+- Send GET request
+- Raise HTTP error if any" color=green]
+	Response [label="response = requests.get(GNEWS_URL, params=params)" color=blue]
+	CheckStatus [label="response.raise_for_status()" color=red]
+	ParseJSON [label="data = response.json()" color=blue]
+	CheckArticles [label="If data[\"totalArticles\"] > 0" color=red]
+	NoArticles [label="Print \"No articles found.\"" color=red]
+	ArticleExtract [label="article = data[\"articles\"][0]" color=green]
+	PrintTitle [label="Print article title" color=black style=bold]
+	PrintSource [label="Print article source" color=black style=bold]
+	PrintDate [label="Print published date" color=black style=bold]
+	PrintURL [label="Print article URL" color=black style=bold]
+	PrintContent [label="Print article content snippet" color=black style=bold]
+	ReturnURL [label="Return article URL" color=blue]
+	Except [label="Except Exception as e: print(f\"Error: {e}\")" color=red]
+	Import -> APIKey
+	APIKey -> GNEWSURL
+	GNEWSURL -> FuncDef
+	FuncDef -> Params
+	Params -> TryBlock
+	TryBlock -> Response
+	Response -> CheckStatus
+	CheckStatus -> ParseJSON [label="HTTP OK"]
+	ParseJSON -> CheckArticles
+	CheckArticles -> ArticleExtract [label="totalArticles > 0"]
+	CheckArticles -> NoArticles [label="0 articles"]
+	ArticleExtract -> PrintTitle
+	ArticleExtract -> PrintSource
+	ArticleExtract -> PrintDate
+	ArticleExtract -> PrintURL
+	ArticleExtract -> PrintContent
+	PrintContent -> ReturnURL
+	TryBlock -> Except [label="if exception occurs"]
+}

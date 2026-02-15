@@ -1,0 +1,23 @@
+// get_full_article_text
+digraph {
+	rankdir=TB
+	Start [label="Start: get_full_article_text(url)" color=black style=bold]
+	TryBlock [label="Enter try block" color=blue]
+	ArticleObject [label="Create Article object with URL" color=blue]
+	Download [label="Download article HTML from the web" color=green]
+	Parse [label="Parse HTML to extract structured content" color=green]
+	ExtractText [label="Extract article text (article.text)" color=green]
+	ReturnText [label="Return extracted text" color=black style=bold]
+	ExceptBlock [label="Enter except block on error" color=red]
+	PrintError [label="Print error message" color=red]
+	ReturnNone [label="Return None" color=black style=bold]
+	Start -> TryBlock
+	TryBlock -> ArticleObject [label="initialize Article(url)"]
+	ArticleObject -> Download [label="fetch HTML content over network"]
+	Download -> Parse [label="convert HTML to structured article object"]
+	Parse -> ExtractText [label="extract main text content from article"]
+	ExtractText -> ReturnText [label="return text to caller"]
+	TryBlock -> ExceptBlock [label="if any exception occurs" color=red]
+	ExceptBlock -> PrintError [label="log the error"]
+	PrintError -> ReturnNone [label="return None to caller"]
+}

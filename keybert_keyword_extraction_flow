@@ -1,0 +1,27 @@
+// KeyBERT Keyword Extraction Flow
+digraph {
+	rankdir=TB
+	Import [label="Import KeyBERT from keybert" color=black style=bold]
+	Title [label="Set input title string" color=blue]
+	InitModel [label="Initialize KeyBERT model: kw_model = KeyBERT()" color=green]
+	ExtractKeywords [label="Extract keywords using kw_model.extract_keywords()" color=green]
+	KeywordsList [label="keywords = list of (keyword, score) tuples" color=purple]
+	KeywordPhrases [label="keyword_phrases = [kw[0] for kw in keywords]" color=blue]
+	SplitWords [label="Split phrases into individual words" color=green]
+	Deduplicate [label="Remove duplicates while preserving order (case-insensitive)" color=red]
+	DeduplicatedWords [label="deduplicated_words = final list of unique words" color=purple]
+	FinalQuery [label="query = \" \".join(deduplicated_words)" color=blue]
+	PrintKeywords [label="Print keyword_phrases" color=black style=bold]
+	PrintQuery [label="Print deduplicated query string" color=black style=bold]
+	Import -> Title
+	Title -> InitModel
+	InitModel -> ExtractKeywords [label="Model ready"]
+	ExtractKeywords -> KeywordsList [label="Extract top_n keywords with n-grams"]
+	KeywordsList -> KeywordPhrases [label="Extract only the phrases"]
+	KeywordPhrases -> SplitWords [label="Split each phrase into words"]
+	SplitWords -> Deduplicate [label="Remove duplicates (case-insensitive)"]
+	Deduplicate -> DeduplicatedWords [label="Unique word list ready"]
+	DeduplicatedWords -> FinalQuery [label="Join words into query string"]
+	FinalQuery -> PrintKeywords [label="Print original phrases"]
+	FinalQuery -> PrintQuery [label="Print final deduplicated query"]
+}

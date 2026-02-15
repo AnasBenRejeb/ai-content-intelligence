@@ -1,0 +1,6 @@
+// get_titles_for_category
+digraph {
+	Start [label="Start: get_titles_for_category(query, max_pages=2)"]
+	Init [label="Initialize empty list: titles = []"]
+	Start -> Init
+}
