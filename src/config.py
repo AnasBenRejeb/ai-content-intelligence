@@ -19,10 +19,12 @@ class Settings(BaseSettings):
     llm_model_path: str = "models/mistral-7b-v0.3-sarcasm-scrolls-4k-q4_k_m.gguf"
     llm_enabled: bool = True
     
-    # Agent configuration
-    categories: List[str] = ["politics", "entertainment", "sports", "technology"]
-    page_size: int = 50
-    pages_per_category: int = 2
+    # Agent configuration (optimized for twice-daily runs within free tier)
+    # 2 categories × 25 articles × 1 page = ~50 API calls per run
+    # 2 runs/day = 100 API calls/day (exactly at free tier limit!)
+    categories: List[str] = ["technology", "business"]  # Reduced from 4 to 2
+    page_size: int = 25  # Reduced from 50 to 25
+    pages_per_category: int = 1  # Reduced from 2 to 1
     similarity_threshold: int = 90
     max_retries: int = 3
     

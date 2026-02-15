@@ -1,8 +1,9 @@
-# Render.com Blueprint for AI Content Intelligence Platform
-# Auto-scaling, self-healing, free tier deployment
+# Render.com Configuration for AI Content Intelligence Platform
+# 100% FREE deployment - Web service only
+# Article generation handled by GitHub Actions (also free!)
 
 services:
-  # Main web service
+  # Main web service (FREE)
   - type: web
     name: ai-content-intelligence
     env: python
@@ -15,30 +16,13 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
-      - key: NEWSAPI_KEY
-        sync: false
-      - key: GNEWS_API_KEY
-        sync: false
       - key: LOG_LEVEL
         value: INFO
       - key: MAX_WORKERS
         value: 5
-
-  # Cron job for scheduled generation (runs every 12 hours)
-  - type: cron
-    name: article-generator-cron
-    env: python
-    region: oregon
-    schedule: "0 */12 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -c "from src.orchestrator import Orchestrator; Orchestrator().run_pipeline()"
-    autoDeploy: true
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.0
-      - key: NEWSAPI_KEY
-        sync: false
-      - key: GNEWS_API_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: INFO
+    
+    # Persistent disk for articles (FREE 1GB)
+    disk:
+      name: articles-storage
+      mountPath: /opt/render/project/src/generated_articles
+      sizeGB: 1
