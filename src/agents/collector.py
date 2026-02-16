@@ -72,6 +72,9 @@ class CollectorAgent(BaseAgent):
         pages = action.parameters["pages"]
         page_size = action.parameters["page_size"]
         
+        print(f"\n🔧 _execute_action called for category={category}, pages={pages}, page_size={page_size}")
+        print(f"🔑 API Key present: {bool(self.api_key)}, length: {len(self.api_key) if self.api_key else 0}")
+        
         titles = []
         
         for page in range(1, pages + 1):
@@ -84,16 +87,27 @@ class CollectorAgent(BaseAgent):
                     f"apiKey={self.api_key}"
                 )
                 
+                print(f"📡 Fetching page {page}/{pages} for {category}...")
+                
                 response = requests.get(url, timeout=10)
+                
+                print(f"📥 Response status: {response.status_code}")
+                
                 response.raise_for_status()
                 data = response.json()
                 
+                print(f"📊 API response status: {data.get('status')}")
+                
                 if data.get("status") != "ok":
+                    print(f"❌ API error for {category}: {data.get('message')}")
                     logger.warning(f"API error for {category}: {data.get('message')}")
                     break
                 
                 articles = data.get("articles", [])
+                print(f"📰 Received {len(articles)} articles from API")
+                
                 if not articles:
+                    print(f"⚠️  No articles in response for page {page}")
                     break
                 
                 for article in articles:
@@ -117,12 +131,19 @@ class CollectorAgent(BaseAgent):
                                 "published_at": published_at
                             })
                 
+                print(f"✅ Processed {len(titles)} articles so far")
+                
             except Exception as e:
+                print(f"❌ Error fetching page {page} for {category}: {e}")
                 logger.error(f"Error fetching page {page} for {category}: {e}")
                 break
         
+        print(f"📊 Total raw articles collected: {len(titles)}")
+        
         # Deduplicate
+        print("🔄 Deduplicating articles...")
         unique_articles = self._deduplicate(titles)
+        print(f"✅ After deduplication: {len(unique_articles)} unique articles")
         
         result = {
             "success": len(unique_articles) > 0,
@@ -167,21 +188,32 @@ class CollectorAgent(BaseAgent):
     
     def collect_all_categories(self) -> Dict[str, List[Dict]]:
         """Collect articles from all categories"""
+        print(f"\n🔧 CollectorAgent.collect_all_categories() called")
+        print(f"📋 Categories to process: {self.categories}")
+        
         all_results = {}
         
         for category in self.categories:
+            print(f"\n📰 Processing category: {category}")
+            
             # Think about the task
             thought = self.think({"category": category})
             
             # Execute collection
+            print(f"🔄 Executing collection for {category}...")
             result = self.act(thought)
+            print(f"✅ Collection result: success={result['success']}, articles={result.get('unique_count', 0)}")
             
             if result["success"]:
                 all_results[category] = result["articles"]  # Changed from "titles"
                 logger.info(f"Collected {result['unique_count']} articles from {category}")
+                print(f"✅ Stored {result['unique_count']} articles for {category}")
+            else:
+                print(f"❌ Collection failed for {category}")
             
             # Periodic reflection
             if len(self.actions_taken) % settings.reflection_interval == 0:
                 self.reflect("periodic")
         
+        print(f"\n🏁 collect_all_categories completed: {len(all_results)} categories, {sum(len(v) for v in all_results.values())} total articles")
         return all_results
