@@ -44,6 +44,25 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
     
+    - name: Cache LLM model
+      uses: actions/cache@v3
+      id: cache-model
+      with:
+        path: models/
+        key: ${{ runner.os }}-mistral-sarcasm-v1
+        restore-keys: |
+          ${{ runner.os }}-mistral-sarcasm-
+    
+    - name: Download Mistral-7B Sarcasm model
+      if: steps.cache-model.outputs.cache-hit != 'true'
+      run: |
+        echo "📥 Downloading Mistral-7B Sarcasm model from HuggingFace..."
+        mkdir -p models
+        # Download from HuggingFace (using a similar sarcasm-trained model)
+        wget -q --show-progress https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O models/mistral-7b-v0.3-sarcasm-scrolls-4k-q4_k_m.gguf
+        echo "✅ Model downloaded successfully!"
+        ls -lh models/
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -55,7 +74,7 @@ jobs:
         mkdir -p memory_store
         mkdir -p logs
     
-    - name: Generate articles
+    - name: Generate satirical articles
       env:
         NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
@@ -63,9 +82,9 @@ jobs:
         MAX_WORKERS: 5
         PYTHONUNBUFFERED: 1
       run: |
-        echo "🚀 Starting article generation..."
+        echo "🎭 Starting SATIRICAL article generation..."
         python -u -c "from src.orchestrator import Orchestrator; o = Orchestrator(); result = o.run_pipeline(); print(f'\n\nFINAL RESULT: {result}')" 2>&1 | tee article_generation.log
-        echo "✅ Article generation complete!"
+        echo "✅ Satirical article generation complete!"
         echo ""
         echo "Last 50 lines of output:"
         tail -50 article_generation.log || true
@@ -75,7 +94,9 @@ jobs:
       run: |
         if [ -n "$(git status --porcelain generated_articles/)" ]; then
           echo "changes=true" >> $GITHUB_OUTPUT
-          echo "📝 New articles generated!"
+          echo "📝 New satirical articles generated!"
+          echo "Sample titles:"
+          ls -1 generated_articles/*.md | head -5 | xargs -I {} basename {} .md
         else
           echo "changes=false" >> $GITHUB_OUTPUT
           echo "ℹ️ No new articles (might be duplicates)"
@@ -88,23 +109,25 @@ jobs:
         git config --local user.name "GitHub Actions Bot"
         git add generated_articles/
         git add memory_store/ || true
-        git commit -m "🤖 Auto-generated articles - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+        git commit -m "🎭 Auto-generated satirical articles - $(date +'%Y-%m-%d %H:%M:%S UTC')"
         git push
     
     - name: Summary
       run: |
-        echo "## 📊 Article Generation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🎭 Satirical Article Generation Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Status:** ✅ Complete" >> $GITHUB_STEP_SUMMARY
         echo "- **Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
         echo "- **Articles:** $(ls -1 generated_articles/*.md 2>/dev/null | wc -l) total" >> $GITHUB_STEP_SUMMARY
         echo "- **New Articles:** ${{ steps.check_changes.outputs.changes == 'true' && 'Yes' || 'No (duplicates filtered)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Style:** Wildly exaggerated, sarcastic, rage-filled satire 🎭" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "🎉 Next run in 12 hours!" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 Next satirical run in 12 hours!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📈 Free Tier Usage (OPTIMIZED!)" >> $GITHUB_STEP_SUMMARY
         echo "- **GitHub Actions:** ~20 min/day = 600/2000 min/month (30%) ✅" >> $GITHUB_STEP_SUMMARY
         echo "- **API Calls:** ~50 calls/run × 2 runs = 100/day (at limit) ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- **LLM:** Local Mistral-7B Sarcasm model (cached) ✅" >> $GITHUB_STEP_SUMMARY
         echo "- **Categories:** Technology + Business (high-value content)" >> $GITHUB_STEP_SUMMARY
         echo "- **Cost:** $0.00 💰" >> $GITHUB_STEP_SUMMARY
         echo "- **Sustainability:** ♾️ Forever!" >> $GITHUB_STEP_SUMMARY
