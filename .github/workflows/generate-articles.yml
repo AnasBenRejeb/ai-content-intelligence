@@ -58,10 +58,14 @@ jobs:
         GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
         LOG_LEVEL: INFO
         MAX_WORKERS: 5
+        PYTHONUNBUFFERED: 1
       run: |
         echo "🚀 Starting article generation..."
-        python -c "from src.orchestrator import Orchestrator; o = Orchestrator(); o.run_pipeline()"
+        python -u -c "from src.orchestrator import Orchestrator; o = Orchestrator(); result = o.run_pipeline(); print(f'\n\nFINAL RESULT: {result}')" 2>&1 | tee article_generation.log
         echo "✅ Article generation complete!"
+        echo ""
+        echo "Last 50 lines of output:"
+        tail -50 article_generation.log || true
     
     - name: Check for new articles
       id: check_changes
