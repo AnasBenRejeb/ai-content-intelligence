@@ -20,9 +20,3 @@ services:
         value: INFO
       - key: MAX_WORKERS
         value: 5
-    
-    # Persistent disk for articles (FREE 1GB)
-    disk:
-      name: articles-storage
-      mountPath: /opt/render/project/src/generated_articles
-      sizeGB: 1
