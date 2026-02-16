@@ -64,13 +64,24 @@ class WriterAgent(BaseAgent):
             from llama_cpp import Llama
             
             logger.info(f"Loading LLM model from {self.model_path}...")
+            logger.info(f"Model file size: {self.model_path.stat().st_size / (1024*1024):.1f} MB")
+            
             self.llm = Llama(
                 model_path=str(self.model_path),
                 n_ctx=4096,  # Context window
                 n_threads=4,  # CPU threads
                 verbose=False
             )
-            logger.info("✅ Local LLM initialized successfully (Mistral-7B)")
+            logger.info("✅ Local LLM initialized successfully (TinyLlama-1.1B)")
+            
+            # Test the model with a simple prompt
+            logger.info("🧪 Testing LLM with simple prompt...")
+            test_response = self.llm("Say 'Hello'", max_tokens=10)
+            logger.info(f"🧪 Test response structure: {type(test_response)}")
+            logger.info(f"🧪 Test response keys: {test_response.keys() if isinstance(test_response, dict) else 'Not a dict'}")
+            if isinstance(test_response, dict) and 'choices' in test_response:
+                logger.info(f"🧪 Test response text: {test_response['choices'][0].get('text', 'NO TEXT')}")
+            logger.info("✅ LLM test successful")
             
         except ImportError:
             logger.warning("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
@@ -78,6 +89,8 @@ class WriterAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to initialize LLM: {e}")
             logger.info("WriterAgent will operate in template mode")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
     
     def _generate_thought(self, context: Dict[str, Any], 
                          memories: List[MemoryEntry]) -> Thought:
@@ -289,13 +302,28 @@ Write your satirical article now:"""
                 stop=["</s>", "\n\nNews:", "\n\nWrite"]
             )
             
-            article_body = response['choices'][0]['text'].strip()
+            # Safely extract text from response with None checks
+            if not response or 'choices' not in response or not response['choices']:
+                logger.error("LLM returned empty or invalid response")
+                raise ValueError("Invalid LLM response structure")
+            
+            text_content = response['choices'][0].get('text')
+            if text_content is None:
+                logger.error("LLM response text is None")
+                raise ValueError("LLM response text is None")
+            
+            article_body = text_content.strip()
+            if not article_body:
+                logger.error("LLM generated empty article")
+                raise ValueError("Empty article generated")
+            
             word_count = len(article_body.split())
             logger.info(f"✅ Generated satirical article: {word_count} words")
             
             # AGENTIC PATTERN: Self-Reflection - Check quality
             logger.info("🔍 SELF-REFLECTION: Evaluating article quality...")
-            reflection_prompt = f"""You are an editor reviewing a satirical article. Rate it 1-10 on:
+            try:
+                reflection_prompt = f"""You are an editor reviewing a satirical article. Rate it 1-10 on:
 - Humor/Satire quality
 - Originality (not copying source)
 - Engagement level
@@ -303,15 +331,20 @@ Write your satirical article now:"""
 Article excerpt: {article_body[:300]}...
 
 Rating (just number 1-10):"""
-            
-            reflection = self.llm(
-                reflection_prompt,
-                max_tokens=10,
-                temperature=0.3
-            )
-            
-            rating_text = reflection['choices'][0]['text'].strip()
-            logger.info(f"💡 Self-reflection rating: {rating_text}/10")
+                
+                reflection = self.llm(
+                    reflection_prompt,
+                    max_tokens=10,
+                    temperature=0.3
+                )
+                
+                if reflection and 'choices' in reflection and reflection['choices']:
+                    rating_text = reflection['choices'][0].get('text', 'N/A').strip()
+                    logger.info(f"💡 Self-reflection rating: {rating_text}/10")
+                else:
+                    logger.warning("Self-reflection returned no rating")
+            except Exception as e:
+                logger.warning(f"Self-reflection failed (non-critical): {e}")
             
             # Format final article with attribution
             article = f"""# {title}
