@@ -1,2 +1,2 @@
-# This file ensures the generated_articles directory is tracked by Git
-# Articles will be automatically generated and committed by GitHub Actions
+# This folder will contain AI-generated satirical articles
+# Articles are generated automatically by GitHub Actions twice daily
