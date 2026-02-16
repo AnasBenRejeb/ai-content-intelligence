@@ -3,7 +3,7 @@
 Production Flask App for AI Content Intelligence Platform
 Deployed on Render.com with auto-scaling and self-healing
 """
-from flask import Flask, render_template, jsonify, send_from_directory, request
+from flask import Flask, render_template, jsonify, send_from_directory, request, render_template_string
 from pathlib import Path
 import logging
 import os
@@ -114,17 +114,80 @@ def index():
 @app.route('/blog')
 @app.route('/blog.html')
 def blog():
-    """Blog page with generated articles"""
+    """Blog page listing all articles"""
     try:
-        blog_path = Path('website/blog.html')
-        if blog_path.exists():
-            return send_from_directory('website', 'blog.html')
-        else:
-            # Generate initial blog page
+        base_dir = Path(__file__).parent
+        articles_dir = base_dir / 'generated_articles'
+        
+        if not articles_dir.exists():
             return generate_initial_blog()
+        
+        # Get all articles
+        articles = []
+        for article_file in articles_dir.glob('*.md'):
+            try:
+                content = article_file.read_text(encoding='utf-8')
+                lines = content.split('\n')
+                title = "Untitled"
+                preview = ""
+                
+                for line in lines:
+                    if line.startswith('# '):
+                        title = line.replace('# ', '').strip()
+                    elif line.strip() and not line.startswith('#') and not line.startswith('**'):
+                        preview = line.strip()[:200]
+                        break
+                
+                articles.append({
+                    'title': title,
+                    'preview': preview,
+                    'filename': article_file.stem,
+                    'created': datetime.fromtimestamp(article_file.stat().st_mtime).isoformat()
+                })
+            except Exception as e:
+                logger.error(f"Error reading article: {e}")
+                continue
+        
+        # Sort by date
+        articles.sort(key=lambda x: x['created'], reverse=True)
+        
+        # Generate blog listing page
+        return render_template_string(generate_blog_listing(articles))
     except Exception as e:
         logger.error(f"Error serving blog: {e}")
-        return jsonify({'error': 'Blog temporarily unavailable'}), 503
+        return generate_initial_blog()
+
+@app.route('/article/<filename>')
+def article(filename):
+    """Individual article page"""
+    try:
+        base_dir = Path(__file__).parent
+        articles_dir = base_dir / 'generated_articles'
+        article_file = articles_dir / f"{filename}.md"
+        
+        if not article_file.exists():
+            return jsonify({'error': 'Article not found'}), 404
+        
+        content = article_file.read_text(encoding='utf-8')
+        
+        # Parse markdown content
+        lines = content.split('\n')
+        title = "Untitled"
+        body_lines = []
+        
+        for line in lines:
+            if line.startswith('# '):
+                title = line.replace('# ', '').strip()
+            else:
+                body_lines.append(line)
+        
+        body = '\n'.join(body_lines)
+        
+        # Generate article page
+        return render_template_string(generate_article_page(title, body, filename))
+    except Exception as e:
+        logger.error(f"Error serving article: {e}")
+        return jsonify({'error': 'Article not found'}), 404
 
 @app.route('/api/articles')
 @rate_limit
@@ -274,6 +337,127 @@ def server_error(e):
     """Custom 500 page"""
     logger.error(f"Server error: {e}")
     return jsonify({'error': 'Internal server error'}), 500
+
+def generate_blog_listing(articles):
+    """Generate blog listing page HTML"""
+    articles_html = ""
+    for article in articles:
+        articles_html += f"""
+        <div class="article-card">
+            <div class="article-image">📰</div>
+            <div class="article-content">
+                <div class="article-meta">
+                    <span>🕒 {datetime.fromisoformat(article['created']).strftime('%B %d, %Y')}</span>
+                    <span>🤖 AI Generated</span>
+                </div>
+                <h3>{article['title']}</h3>
+                <p>{article['preview']}...</p>
+                <a href="/article/{article['filename']}" class="read-more">Read Full Article →</a>
+            </div>
+        </div>
+        """
+    
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Articles | AI Content Intelligence</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: #f8f9fa; }}
+        header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .header-content {{ max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }}
+        .logo {{ font-size: 24px; font-weight: bold; }}
+        nav a {{ color: white; text-decoration: none; margin-left: 30px; }}
+        .container {{ max-width: 1200px; margin: 40px auto; padding: 0 20px; }}
+        h1 {{ font-size: 36px; margin-bottom: 30px; color: #333; }}
+        .articles-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 30px; }}
+        .article-card {{ background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.3s; }}
+        .article-card:hover {{ transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }}
+        .article-image {{ width: 100%; height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 48px; }}
+        .article-content {{ padding: 25px; }}
+        .article-meta {{ display: flex; gap: 15px; margin-bottom: 15px; font-size: 13px; color: #999; }}
+        .article-card h3 {{ font-size: 20px; margin-bottom: 12px; color: #333; }}
+        .article-card p {{ color: #666; margin-bottom: 15px; }}
+        .read-more {{ color: #667eea; text-decoration: none; font-weight: 600; }}
+        .read-more:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">🤖 AI Content Intelligence</div>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/blog">Articles</a>
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        <h1>📰 All Articles</h1>
+        <div class="articles-grid">
+            {articles_html}
+        </div>
+    </div>
+</body>
+</html>"""
+
+def generate_article_page(title, content, filename):
+    """Generate individual article page HTML"""
+    # Simple markdown to HTML conversion
+    html_content = content.replace('\n\n', '</p><p>').replace('\n', '<br>')
+    html_content = f'<p>{html_content}</p>'
+    
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} | AI Content Intelligence</title>
+    <meta name="description" content="{title}">
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.8; color: #333; background: #f8f9fa; }}
+        header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .header-content {{ max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }}
+        .logo {{ font-size: 24px; font-weight: bold; }}
+        nav a {{ color: white; text-decoration: none; margin-left: 30px; }}
+        .container {{ max-width: 800px; margin: 40px auto; padding: 0 20px; }}
+        .article {{ background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        h1 {{ font-size: 36px; margin-bottom: 20px; color: #333; line-height: 1.3; }}
+        .meta {{ color: #999; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }}
+        .content {{ font-size: 18px; line-height: 1.8; }}
+        .content p {{ margin-bottom: 20px; }}
+        .back-link {{ display: inline-block; margin-top: 30px; color: #667eea; text-decoration: none; font-weight: 600; }}
+        .back-link:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">🤖 AI Content Intelligence</div>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/blog">Articles</a>
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        <article class="article">
+            <h1>{title}</h1>
+            <div class="meta">
+                <span>🤖 AI Generated</span> • 
+                <span>📰 Latest News</span>
+            </div>
+            <div class="content">
+                {html_content}
+            </div>
+            <a href="/blog" class="back-link">← Back to All Articles</a>
+        </article>
+    </div>
+</body>
+</html>"""
 
 if __name__ == '__main__':
     # Create required directories
