@@ -49,17 +49,17 @@ jobs:
       id: cache-model
       with:
         path: models/
-        key: ${{ runner.os }}-mistral-sarcasm-v1
+        key: ${{ runner.os }}-tinyllama-1.1b-v1
         restore-keys: |
-          ${{ runner.os }}-mistral-sarcasm-
+          ${{ runner.os }}-tinyllama-
     
     - name: Download Mistral-7B Sarcasm model
       if: steps.cache-model.outputs.cache-hit != 'true'
       run: |
-        echo "📥 Downloading Mistral-7B Sarcasm model from HuggingFace..."
+        echo "📥 Downloading TinyLlama-1.1B (smaller, faster model)..."
         mkdir -p models
-        # Download from HuggingFace (using a similar sarcasm-trained model)
-        wget -q --show-progress https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O models/mistral-7b-v0.3-sarcasm-scrolls-4k-q4_k_m.gguf
+        # Use TinyLlama 1.1B - only 637MB, much faster!
+        wget -q --show-progress https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
         echo "✅ Model downloaded successfully!"
         ls -lh models/
     

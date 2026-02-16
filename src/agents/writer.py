@@ -1,4 +1,4 @@
-"""Article writer agent using local Llama.cpp LLM"""
+"""Article writer agent using Gemini API or local LLM"""
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 import logging
@@ -14,18 +14,39 @@ logger = logging.getLogger(__name__)
 
 
 class WriterAgent(BaseAgent):
-    """Agent responsible for generating articles using local LLM"""
+    """Agent responsible for generating articles using Gemini API or local LLM"""
     
     def __init__(self, memory_store: MemoryStore, model_path: Optional[str] = None):
         super().__init__("WriterAgent", memory_store)
         self.llm = None
+        self.gemini_model = None
         self.model_path = Path(model_path) if model_path else settings.llm_model_path
         self.generated_dir = settings.generated_articles_dir
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.self_model["strengths"] = ["article_generation", "content_synthesis"]
         
-        # Initialize local LLM
-        self._init_llm()
+        # Try Gemini first, then local LLM
+        self._init_gemini()
+        if not self.gemini_model:
+            self._init_llm()
+    
+    def _init_gemini(self):
+        """Initialize Gemini API"""
+        try:
+            gemini_key = os.environ.get('GEMINI_API_KEY', '')
+            if not gemini_key:
+                logger.info("GEMINI_API_KEY not found - will try local LLM")
+                return
+            
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            self.gemini_model = genai.GenerativeModel('gemini-pro')
+            logger.info("✅ Gemini API initialized successfully")
+            
+        except ImportError:
+            logger.warning("google-generativeai not installed. Install with: pip install google-generativeai")
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini: {e}")
     
     def _init_llm(self):
         """Initialize local Llama.cpp LLM"""

@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     generated_articles_dir: Path = Path("./generated_articles")
     
     # LLM configuration
-    llm_model_path: str = "models/mistral-7b-v0.3-sarcasm-scrolls-4k-q4_k_m.gguf"
-    llm_enabled: bool = True
+    llm_model_path: str = "models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    llm_enabled: bool = True  # Re-enabled with smaller model
     
     # Agent configuration (optimized for twice-daily runs within free tier)
     # 2 categories × 25 articles × 1 page = ~50 API calls per run
