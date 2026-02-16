@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     articles_dir: Path = Path("./articles")
     generated_articles_dir: Path = Path("./generated_articles")
     
-    # LLM configuration
-    llm_model_path: str = "models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    # LLM configuration  
+    llm_model_path: Path = Path("models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
     llm_enabled: bool = True  # Re-enabled with smaller model
     
     # Agent configuration (optimized for twice-daily runs within free tier)
