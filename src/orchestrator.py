@@ -69,7 +69,7 @@ class Orchestrator:
             successful_retrievals = [r for r in retrieved if r.get("success")]
             logger.info(f"✅ Retrieved {len(successful_retrievals)} articles")
             
-            # Phase 4: Generation
+            # Phase 4: Save articles (LLM optional)
             if settings.llm_enabled and successful_retrievals:
                 logger.info("✍️  Phase 4: Generating new articles with LLM")
                 generated = self.writer.generate_batch(successful_retrievals[:10])  # Limit for demo
@@ -77,10 +77,11 @@ class Orchestrator:
                 successful_generations = [g for g in generated if g.get("success")]
                 logger.info(f"✅ Generated {len(successful_generations)} articles")
             else:
-                generated = []
-                successful_generations = []
-                if not settings.llm_enabled:
-                    logger.info("⏭️  Phase 4: Skipped (LLM disabled in config)")
+                # Save retrieved articles directly without LLM rewriting
+                logger.info("💾 Phase 4: Saving retrieved articles (LLM disabled)")
+                generated = self._save_retrieved_articles(successful_retrievals[:10])
+                successful_generations = [g for g in generated if g.get("success")]
+                logger.info(f"✅ Saved {len(successful_generations)} articles")
             
             # Metacognitive reflection
             self._reflect_on_execution(collected, analyses, retrieved, generated if settings.llm_enabled else [])
@@ -118,6 +119,77 @@ class Orchestrator:
                 "error": str(e),
                 "agent_statuses": self.get_agent_statuses()
             }
+    
+    def _save_retrieved_articles(self, retrieved: List[Dict]) -> List[Dict]:
+        """Save retrieved articles directly without LLM rewriting"""
+        results = []
+        
+        for article_data in retrieved:
+            try:
+                # Extract article info
+                title = article_data.get("title", "Untitled")
+                content = article_data.get("content", "")
+                url = article_data.get("url", "")
+                source = article_data.get("source", "Unknown")
+                keywords = article_data.get("keywords", [])
+                
+                if not content:
+                    results.append({"success": False, "error": "No content"})
+                    continue
+                
+                # Create markdown content
+                markdown = f"""# {title}
+
+**Source:** {source}  
+**URL:** {url}  
+**Keywords:** {', '.join(keywords[:5])}
+
+---
+
+{content}
+
+---
+
+*This article was automatically curated from {source}.*
+"""
+                
+                # Save to file
+                filename = self._sanitize_filename(title)
+                filepath = settings.generated_articles_dir / f"{filename}.md"
+                
+                # Ensure directory exists
+                settings.generated_articles_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Write file
+                filepath.write_text(markdown, encoding='utf-8')
+                
+                results.append({
+                    "success": True,
+                    "title": title,
+                    "filename": str(filepath)
+                })
+                
+                logger.info(f"💾 Saved article: {title}")
+                
+            except Exception as e:
+                logger.error(f"Error saving article: {e}")
+                results.append({"success": False, "error": str(e)})
+        
+        return results
+    
+    def _sanitize_filename(self, title: str) -> str:
+        """Convert title to safe filename"""
+        import re
+        # Remove special characters
+        safe = re.sub(r'[^\w\s-]', '', title)
+        # Replace spaces with underscores
+        safe = re.sub(r'[-\s]+', '_', safe)
+        # Limit length
+        safe = safe[:100]
+        # Add timestamp to ensure uniqueness
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{safe}_{timestamp}"
     
     def _reflect_on_execution(self, collected: Dict, analyses: List, retrieved: List, generated: List = []):
         """Metacognitive reflection on pipeline execution"""
