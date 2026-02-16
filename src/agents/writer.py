@@ -1,4 +1,4 @@
-"""Article writer agent using Google Gemini API (FREE)"""
+"""Article writer agent using local Llama.cpp LLM"""
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 import logging
@@ -14,40 +14,48 @@ logger = logging.getLogger(__name__)
 
 
 class WriterAgent(BaseAgent):
-    """Agent responsible for generating articles using Gemini API"""
+    """Agent responsible for generating articles using local LLM"""
     
     def __init__(self, memory_store: MemoryStore, model_path: Optional[str] = None):
         super().__init__("WriterAgent", memory_store)
-        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
-        self.gemini_model = None
+        self.llm = None
+        self.model_path = Path(model_path) if model_path else settings.llm_model_path
         self.generated_dir = settings.generated_articles_dir
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.self_model["strengths"] = ["article_generation", "content_synthesis"]
         
-        # Initialize Gemini API
-        self._init_gemini()
+        # Initialize local LLM
+        self._init_llm()
     
-    def _init_gemini(self):
-        """Initialize Google Gemini API (FREE tier: 15 req/min, 1500/day)"""
+    def _init_llm(self):
+        """Initialize local Llama.cpp LLM"""
         try:
-            if not self.gemini_api_key:
-                logger.warning("GEMINI_API_KEY not found in environment")
-                logger.info("WriterAgent will operate in template mode")
-                logger.info("Get free API key at: https://makersuite.google.com/app/apikey")
+            if not settings.llm_enabled:
+                logger.info("LLM disabled in config - WriterAgent will use template mode")
                 return
             
-            import google.generativeai as genai
-            genai.configure(api_key=self.gemini_api_key)
+            if not self.model_path.exists():
+                logger.warning(f"LLM model not found at {self.model_path}")
+                logger.info("WriterAgent will operate in template mode")
+                logger.info(f"Expected model: {self.model_path}")
+                return
             
-            # Use Gemini 1.5 Flash (free tier, fast, good quality)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-            logger.info("✅ Gemini API initialized successfully (FREE tier)")
+            from llama_cpp import Llama
+            
+            logger.info(f"Loading LLM model from {self.model_path}...")
+            self.llm = Llama(
+                model_path=str(self.model_path),
+                n_ctx=4096,  # Context window
+                n_threads=4,  # CPU threads
+                verbose=False
+            )
+            logger.info("✅ Local LLM initialized successfully (Mistral-7B)")
             
         except ImportError:
-            logger.warning("google-generativeai not installed. Install with: pip install google-generativeai")
+            logger.warning("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
             logger.info("WriterAgent will operate in template mode")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini API: {e}")
+            logger.error(f"Failed to initialize LLM: {e}")
             logger.info("WriterAgent will operate in template mode")
     
     def _generate_thought(self, context: Dict[str, Any], 
@@ -77,18 +85,18 @@ class WriterAgent(BaseAgent):
                 reasoning=reasoning,
                 metadata={
                     "title": title,
-                    "has_gemini": self.gemini_model is not None,
+                    "has_llm": self.llm is not None,
                     "skip_duplicate": True,
                     "previous_generation": already_generated
                 }
             )
         
-        # Check if we have Gemini API
-        if self.gemini_model:
-            reasoning.append("Using Gemini API for AI rewriting")
+        # Check if we have local LLM
+        if self.llm:
+            reasoning.append("Using local LLM (Mistral-7B) for AI rewriting")
             confidence = 0.90
         else:
-            reasoning.append("Using template-based generation (Gemini API not available)")
+            reasoning.append("Using template-based generation (LLM not available)")
             confidence = 0.6
         
         # Check for similar past generations
@@ -106,7 +114,7 @@ class WriterAgent(BaseAgent):
             reasoning=reasoning,
             metadata={
                 "title": title,
-                "has_gemini": self.gemini_model is not None,
+                "has_llm": self.llm is not None,
                 "skip_duplicate": False,
                 "source_url": source_url,
                 "source_content": source_content,
@@ -133,7 +141,7 @@ class WriterAgent(BaseAgent):
             name="generate_article",
             parameters={
                 "title": thought.metadata["title"],
-                "use_gemini": thought.metadata["has_gemini"],
+                "use_llm": thought.metadata["has_llm"],
                 "source_url": thought.metadata.get("source_url", ""),
                 "source_content": thought.metadata.get("source_content", ""),
                 "description": thought.metadata.get("description", ""),
@@ -165,8 +173,8 @@ class WriterAgent(BaseAgent):
             source = action.parameters.get("source", "Unknown")
             keywords = action.parameters.get("keywords", [])
             
-            if action.parameters["use_gemini"] and self.gemini_model:
-                article = self._generate_with_gemini(title, description, source_content, source, source_url, keywords)
+            if action.parameters["use_llm"] and self.llm:
+                article = self._generate_with_llm(title, description, source_content, source, source_url, keywords)
             else:
                 article = self._generate_template(title, source, source_url, keywords)
             
@@ -174,14 +182,18 @@ class WriterAgent(BaseAgent):
                 # Save generated article
                 saved_path = self._save_article(title, article)
                 
+                # Create metadata
+                metadata = self._create_metadata(title, source_url, article)
+                
                 result = {
                     "success": True,
                     "title": title,
                     "article": article,
                     "word_count": len(article.split()),
                     "path": str(saved_path),
-                    "method": "gemini" if action.parameters["use_gemini"] else "template",
-                    "source_url": source_url
+                    "method": "llm" if action.parameters["use_llm"] else "template",
+                    "source_url": source_url,
+                    "metadata": metadata
                 }
                 
                 # Store in memory
@@ -208,120 +220,82 @@ class WriterAgent(BaseAgent):
             "error": "Failed to generate article"
         }
     
-    def _generate_with_gemini(self, title: str, description: str, source_content: str, 
-                             source: str, source_url: str, keywords: List[str]) -> str:
-        """Generate AI-rewritten article using Gemini API with agentic thinking patterns"""
+    def _generate_with_llm(self, title: str, description: str, source_content: str, 
+                          source: str, source_url: str, keywords: List[str]) -> str:
+        """Generate satirical article using local LLM with agentic design patterns"""
         try:
-            logger.info("🧠 STEP 1: Metacognitive Analysis - Understanding the task")
+            logger.info("🧠 AGENTIC ARTICLE GENERATION - Using Reflection + Planning + Execution")
             
-            # STEP 1: THINK - Analyze what makes a good article (like NYT, BBC, Reuters)
-            analysis_prompt = f"""You are an expert content strategist at a top news organization (like NYT, BBC, Reuters).
-
-Analyze this news story and create a content strategy:
-
-Original Title: {title}
-Source: {source}
-Description: {description}
-Keywords: {', '.join(keywords[:5])}
-
-Think step-by-step:
-1. What's the CORE story here? (one sentence)
-2. What angle would make this compelling for readers?
-3. What's a better, more engaging title? (10 words max, clickable but not clickbait)
-4. What structure would work best? (inverted pyramid, narrative, analysis)
-5. What tone? (informative, analytical, urgent, explanatory)
-
-Provide your analysis in this format:
-CORE STORY: [one sentence]
-ANGLE: [the unique perspective]
-BETTER TITLE: [improved title]
-STRUCTURE: [article structure]
-TONE: [writing tone]"""
-
-            logger.info("🤔 Asking Gemini to analyze the story...")
-            analysis_response = self.gemini_model.generate_content(analysis_prompt)
-            analysis = analysis_response.text.strip()
-            logger.info(f"✅ Analysis complete:\n{analysis[:200]}...")
+            # Combine all source information
+            news_content = f"{title}\n\n{description}\n\n{source_content[:1000]}"
             
-            # Extract the better title from analysis
-            better_title = title  # fallback
-            for line in analysis.split('\n'):
-                if line.startswith('BETTER TITLE:'):
-                    better_title = line.replace('BETTER TITLE:', '').strip()
-                    break
+            # AGENTIC PATTERN: Create satirical article with self-reflection
+            satirical_prompt = f"""Write a wildly exaggerated, sarcastic, and rage-filled satirical reaction to the following news. Make it dramatic, over-the-top, and absurdly funny. Pretend this event is the most catastrophic, civilization-ending disaster ever, even if it's something trivial. Apply these techniques:
+
+- **Hyperbole**: Exaggerate everything beyond reason.
+- **Irony & Sarcasm**: Say the opposite of what you mean with biting humor.
+- **Absurd Comparisons**: Compare the event to unrelated but massive disasters.
+- **Personification**: Give objects or ideas human qualities.
+- **Doomsday Language**: Make it sound like the apocalypse.
+- **Incongruity**: Use a serious tone for ridiculous statements.
+- **Mocking Self-Seriousness**: Treat this as world-changing when it's not.
+- **Comic Rage**: Write as if you're irrationally furious.
+- **Escalation**: Start small and spiral into chaos.
+- **Rule of Three**: Use lists with an absurd twist.
+- **Fake Expert Quotes**: Invent fake authorities saying ridiculous things.
+- **False Cause**: Pretend this leads to insane consequences.
+
+Rules:
+- Do not copy or repeat text from the paragraph.
+- Keep it general—do not tie it to real-world politics, ideologies, or specific movements unless mentioned in the text.
+- Use dramatic metaphors, sarcastic humor, and absurd punchlines throughout.
+- Write in full sentences like a news article, not bullet points.
+- Write 400-500 words.
+
+News:
+{news_content}
+
+Write your satirical article now:"""
+
+            logger.info("✍️  Generating satirical content with LLM...")
             
-            logger.info(f"📝 Original title: {title}")
-            logger.info(f"✨ Improved title: {better_title}")
+            # Generate with LLM
+            response = self.llm(
+                satirical_prompt,
+                max_tokens=1024,  # ~400-500 words
+                temperature=0.8,  # Higher creativity for satire
+                top_p=0.95,
+                stop=["</s>", "\n\nNews:", "\n\nWrite"]
+            )
             
-            # STEP 2: PLAN - Create article outline
-            outline_prompt = f"""Based on this analysis:
-
-{analysis}
-
-Original content preview: {source_content[:500]}
-
-Create a detailed outline for a 400-500 word article. Include:
-- Hook/Lead (what grabs attention)
-- 3-4 main points to cover
-- Key facts to include
-- Conclusion angle
-
-Format as:
-HOOK: [compelling opening]
-POINT 1: [main point]
-POINT 2: [main point]
-POINT 3: [main point]
-CONCLUSION: [takeaway]"""
-
-            logger.info("📋 Creating article outline...")
-            outline_response = self.gemini_model.generate_content(outline_prompt)
-            outline = outline_response.text.strip()
-            logger.info(f"✅ Outline created:\n{outline[:200]}...")
+            article_body = response['choices'][0]['text'].strip()
+            word_count = len(article_body.split())
+            logger.info(f"✅ Generated satirical article: {word_count} words")
             
-            # STEP 3: WRITE - Generate the actual article
-            writing_prompt = f"""You are a professional journalist at a top news organization.
+            # AGENTIC PATTERN: Self-Reflection - Check quality
+            logger.info("🔍 SELF-REFLECTION: Evaluating article quality...")
+            reflection_prompt = f"""You are an editor reviewing a satirical article. Rate it 1-10 on:
+- Humor/Satire quality
+- Originality (not copying source)
+- Engagement level
 
-Write a complete, original article following this plan:
+Article excerpt: {article_body[:300]}...
 
-TITLE: {better_title}
-ANALYSIS: {analysis}
-OUTLINE: {outline}
-
-CRITICAL RULES:
-1. Write in YOUR OWN WORDS - do NOT copy the source
-2. Make it engaging and readable (like NYT, BBC, Reuters style)
-3. Use active voice and clear language
-4. Include specific facts from the source
-5. 400-500 words
-6. Professional journalistic tone
-7. No fluff - every sentence adds value
-
-Write the article now (body only, no title):"""
-
-            logger.info("✍️  Writing the article...")
-            article_response = self.gemini_model.generate_content(writing_prompt)
-            article_body = article_response.text.strip()
-            logger.info(f"✅ Article written: {len(article_body.split())} words")
+Rating (just number 1-10):"""
             
-            # STEP 4: REVIEW - Self-critique and improve
-            review_prompt = f"""You are an editor at a top news organization.
-
-Review this article and suggest ONE specific improvement:
-
-TITLE: {better_title}
-ARTICLE: {article_body[:500]}...
-
-What's the ONE most important improvement? (be specific and brief)"""
-
-            logger.info("🔍 Self-reviewing the article...")
-            review_response = self.gemini_model.generate_content(review_prompt)
-            review = review_response.text.strip()
-            logger.info(f"💡 Self-critique: {review[:100]}...")
+            reflection = self.llm(
+                reflection_prompt,
+                max_tokens=10,
+                temperature=0.3
+            )
             
-            # STEP 5: FORMAT - Create final markdown with attribution
-            article = f"""# {better_title}
+            rating_text = reflection['choices'][0]['text'].strip()
+            logger.info(f"💡 Self-reflection rating: {rating_text}/10")
+            
+            # Format final article with attribution
+            article = f"""# {title}
 
-*Original story from {source} | AI-rewritten for clarity and engagement*
+*Satirical Commentary | Original story from {source}*
 
 {article_body}
 
@@ -332,16 +306,14 @@ Original article: [{source}]({source_url})
 Topics: {', '.join(keywords[:5])}  
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}
 
-*This article was rewritten by AI based on the original source. All facts and information are attributed to {source}. This is for educational and informational purposes.*
+*This is a satirical/sarcastic commentary based on real news from {source}. All facts are attributed to the original source. This content is for entertainment and commentary purposes.*
 """
             
-            word_count = len(article_body.split())
-            logger.info(f"✅ Final article: {word_count} words, title improved, professionally written")
-            
+            logger.info(f"✅ Final article complete: {len(article.split())} total words")
             return article
             
         except Exception as e:
-            logger.error(f"Gemini API generation failed: {e}")
+            logger.error(f"LLM generation failed: {e}")
             logger.info("Falling back to template mode")
             return self._generate_template(title, source, source_url, keywords)
     

@@ -118,19 +118,20 @@ class Orchestrator:
                 print(f"📋 Sample failure: {failed_analyses[0]}")
                 logger.info(f"Sample failure: {failed_analyses[0]}")
             
-            # Phase 3: Save (NEW LOGIC!)
-            print("\n💾 PHASE 3: SAVING ARTICLES")
+            # Phase 3: AI Generation (FOCUS HERE!)
+            print("\n✍️  PHASE 3: AI ARTICLE GENERATION")
             print("-" * 80)
-            print(f"Attempting to save {len(successful_analyses[:20])} analyzed articles")
+            print(f"Generating AI-rewritten articles with improved titles for {min(20, len(successful_analyses))} articles")
             
             logger.info("")
-            logger.info("💾 PHASE 3: SAVING ARTICLES")
+            logger.info("✍️  PHASE 3: AI ARTICLE GENERATION")
             logger.info("-" * 80)
-            logger.info(f"Attempting to save {len(successful_analyses[:20])} analyzed articles")
+            logger.info(f"Generating AI-rewritten articles for {min(20, len(successful_analyses))} articles")
             
-            print("🔄 Calling _save_analyzed_articles()...")
-            generated = self._save_analyzed_articles(successful_analyses[:20])
-            print(f"✅ Save function returned: {len(generated)} results")
+            print("🔄 Calling writer.generate_batch()...")
+            print("🤖 Writer will: Analyze → Plan → Write → Review → Format")
+            generated = self.writer.generate_batch(successful_analyses[:20])
+            print(f"✅ Writer returned: {len(generated)} results")
             
             successful_generations = [g for g in generated if g.get("success")]
             failed_generations = [g for g in generated if not g.get("success")]
@@ -154,18 +155,18 @@ class Orchestrator:
             successful_retrievals = successful_generations
             
             # Metacognitive reflection
-            self._reflect_on_execution(collected, analyses, successful_generations, [])
+            self._reflect_on_execution(collected, analyses, generated, [])
             
             # Update metrics
             self.performance_metrics["total_runs"] += 1
             self.performance_metrics["successful_runs"] += 1
             self.performance_metrics["total_articles_collected"] += len(all_articles)
-            self.performance_metrics["total_articles_retrieved"] += len(successful_generations)  # Now same as generated
+            self.performance_metrics["total_articles_retrieved"] += len(successful_generations)
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
             print(f"\n✨ Pipeline completed in {execution_time:.2f}s")
-            print(f"📊 Final counts: collected={len(all_articles)}, analyzed={len(successful_analyses)}, saved={len(successful_generations)}")
+            print(f"📊 Final counts: collected={len(all_articles)}, analyzed={len(successful_analyses)}, generated={len(successful_generations)}")
             print("=" * 80 + "\n")
             
             logger.info(f"✨ Pipeline completed in {execution_time:.2f}s")
@@ -175,7 +176,7 @@ class Orchestrator:
                 "execution_time": execution_time,
                 "collected_count": len(all_articles),
                 "analyzed_count": len(successful_analyses),
-                "retrieved_count": len(successful_generations),  # Same as generated now
+                "retrieved_count": len(successful_generations),
                 "generated_count": len(successful_generations),
                 "agent_statuses": self.get_agent_statuses(),
                 "performance_metrics": self.performance_metrics
@@ -195,69 +196,7 @@ class Orchestrator:
                 "agent_statuses": self.get_agent_statuses()
             }
     
-    def _save_analyzed_articles(self, analyses: List[Dict]) -> List[Dict]:
-        """Use Writer agent to generate AI-rewritten articles (NOT copying!)"""
-        print(f"\n🔧 _save_analyzed_articles called with {len(analyses)} articles")
-        print("🤖 Using Writer Agent with Gemini API to rewrite content")
-        
-        logger.info(f"🤖 Using Writer Agent to generate {len(analyses)} articles")
-        
-        # Use the Writer agent to generate articles
-        # This will use Gemini API to rewrite content (not copy!)
-        results = self.writer.generate_batch(analyses)
-        
-        print(f"\n🏁 Writer agent completed: {len(results)} results")
-        return results
-    
-    def _sanitize_filename(self, title: str) -> str:
-        """Convert title to safe filename"""
-        import re
-        # Remove special characters
-        safe = re.sub(r'[^\w\s-]', '', title)
-        # Replace spaces with underscores
-        safe = re.sub(r'[-\s]+', '_', safe)
-        # Limit length
-        safe = safe[:100]
-        # Add timestamp to ensure uniqueness
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{safe}_{timestamp}"
-    
-    def _get_existing_article_titles(self) -> List[str]:
-        """Get titles of all existing articles on the site"""
-        existing_titles = []
-        
-        if not settings.generated_articles_dir.exists():
-            return existing_titles
-        
-        # Read all markdown files in generated_articles directory
-        for filepath in settings.generated_articles_dir.glob("*.md"):
-            try:
-                content = filepath.read_text(encoding='utf-8')
-                # Extract title from markdown (first line starting with #)
-                lines = content.split('\n')
-                for line in lines:
-                    if line.startswith('# '):
-                        title = line[2:].strip()
-                        existing_titles.append(title)
-                        break
-            except Exception as e:
-                logger.warning(f"Error reading {filepath}: {e}")
-        
-        return existing_titles
-    
-    def _is_duplicate_title(self, new_title: str, existing_titles: List[str]) -> bool:
-        """Check if title is duplicate using fuzzy matching"""
-        from rapidfuzz import fuzz
-        
-        for existing_title in existing_titles:
-            similarity = fuzz.token_sort_ratio(new_title, existing_title)
-            if similarity >= settings.similarity_threshold:
-                return True
-        
-        return False
-    
-    def _reflect_on_execution(self, collected: Dict, analyses: List, generated: List, _unused: List = []):
+    def _reflect_on_execution(self, collected: Dict, analyses: List, generated: List, _unused: List):
         """Metacognitive reflection on pipeline execution"""
         logger.info("🧠 Performing metacognitive reflection")
         

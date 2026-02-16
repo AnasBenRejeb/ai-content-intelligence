@@ -26,8 +26,6 @@ schedule>=1.2.0
 Flask>=3.0.0
 gunicorn>=21.2.0
 
-# LLM (optional - for article generation)
-# llama-cpp-python>=0.2.0  # Commented out for free tier deployment
+# Local LLM for satirical article generation
+llama-cpp-python>=0.2.0  # Mistral-7B sarcasm model
 
-# AI Content Generation (FREE tier)
-google-generativeai>=0.3.0  # Gemini API - 15 req/min, 1500/day FREE
