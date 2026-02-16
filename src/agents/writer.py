@@ -1,8 +1,10 @@
-"""Article writer agent using local LLM"""
+"""Article writer agent using Google Gemini API (FREE)"""
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 import logging
 from rapidfuzz import fuzz
+import os
+from datetime import datetime
 
 from .base import BaseAgent, Thought, Action
 from ..memory.base import MemoryStore, MemoryEntry, MemoryType
@@ -12,44 +14,41 @@ logger = logging.getLogger(__name__)
 
 
 class WriterAgent(BaseAgent):
-    """Agent responsible for generating articles using LLM"""
+    """Agent responsible for generating articles using Gemini API"""
     
     def __init__(self, memory_store: MemoryStore, model_path: Optional[str] = None):
         super().__init__("WriterAgent", memory_store)
-        self.model_path = model_path or settings.llm_model_path
-        self.llm = None
+        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
+        self.gemini_model = None
         self.generated_dir = settings.generated_articles_dir
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.self_model["strengths"] = ["article_generation", "content_synthesis"]
         
-        # Initialize LLM
-        self._init_llm()
+        # Initialize Gemini API
+        self._init_gemini()
     
-    def _init_llm(self):
-        """Initialize the LLM"""
+    def _init_gemini(self):
+        """Initialize Google Gemini API (FREE tier: 15 req/min, 1500/day)"""
         try:
-            from llama_cpp import Llama
-            
-            if not Path(self.model_path).exists():
-                logger.warning(f"LLM model not found at {self.model_path}")
-                logger.info("WriterAgent will operate in mock mode")
+            if not self.gemini_api_key:
+                logger.warning("GEMINI_API_KEY not found in environment")
+                logger.info("WriterAgent will operate in template mode")
+                logger.info("Get free API key at: https://makersuite.google.com/app/apikey")
                 return
             
-            logger.info(f"Loading LLM from {self.model_path}")
-            self.llm = Llama(
-                model_path=str(self.model_path),
-                n_ctx=4096,
-                n_threads=4,
-                n_gpu_layers=0  # Set to >0 if you have GPU
-            )
-            logger.info("✅ LLM loaded successfully")
+            import google.generativeai as genai
+            genai.configure(api_key=self.gemini_api_key)
+            
+            # Use Gemini 1.5 Flash (free tier, fast, good quality)
+            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+            logger.info("✅ Gemini API initialized successfully (FREE tier)")
             
         except ImportError:
-            logger.warning("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
-            logger.info("WriterAgent will operate in mock mode")
+            logger.warning("google-generativeai not installed. Install with: pip install google-generativeai")
+            logger.info("WriterAgent will operate in template mode")
         except Exception as e:
-            logger.error(f"Failed to load LLM: {e}")
-            logger.info("WriterAgent will operate in mock mode")
+            logger.error(f"Failed to initialize Gemini API: {e}")
+            logger.info("WriterAgent will operate in template mode")
     
     def _generate_thought(self, context: Dict[str, Any], 
                          memories: List[MemoryEntry]) -> Thought:
@@ -57,6 +56,9 @@ class WriterAgent(BaseAgent):
         title = context.get("title", "")
         source_content = context.get("content", "")
         source_url = context.get("url", "")
+        description = context.get("description", "")
+        source = context.get("source", "Unknown")
+        keywords = context.get("keywords", [])
         
         reasoning = [
             f"Generating article for: {title[:40]}...",
@@ -75,18 +77,18 @@ class WriterAgent(BaseAgent):
                 reasoning=reasoning,
                 metadata={
                     "title": title,
-                    "has_llm": self.llm is not None,
+                    "has_gemini": self.gemini_model is not None,
                     "skip_duplicate": True,
                     "previous_generation": already_generated
                 }
             )
         
-        # Check if we have the LLM
-        if self.llm:
-            reasoning.append("Using local LLM for generation")
-            confidence = 0.85
+        # Check if we have Gemini API
+        if self.gemini_model:
+            reasoning.append("Using Gemini API for AI rewriting")
+            confidence = 0.90
         else:
-            reasoning.append("Using template-based generation (LLM not available)")
+            reasoning.append("Using template-based generation (Gemini API not available)")
             confidence = 0.6
         
         # Check for similar past generations
@@ -104,9 +106,13 @@ class WriterAgent(BaseAgent):
             reasoning=reasoning,
             metadata={
                 "title": title,
-                "has_llm": self.llm is not None,
+                "has_gemini": self.gemini_model is not None,
                 "skip_duplicate": False,
-                "source_url": source_url
+                "source_url": source_url,
+                "source_content": source_content,
+                "description": description,
+                "source": source,
+                "keywords": keywords
             }
         )
     
@@ -127,10 +133,14 @@ class WriterAgent(BaseAgent):
             name="generate_article",
             parameters={
                 "title": thought.metadata["title"],
-                "use_llm": thought.metadata["has_llm"],
-                "source_url": thought.metadata.get("source_url", "")
+                "use_gemini": thought.metadata["has_gemini"],
+                "source_url": thought.metadata.get("source_url", ""),
+                "source_content": thought.metadata.get("source_content", ""),
+                "description": thought.metadata.get("description", ""),
+                "source": thought.metadata.get("source", "Unknown"),
+                "keywords": thought.metadata.get("keywords", [])
             },
-            expected_outcome="Generate unique article based on source",
+            expected_outcome="Generate unique AI-rewritten article",
             confidence=thought.confidence
         )
     
@@ -150,17 +160,19 @@ class WriterAgent(BaseAgent):
         
         try:
             source_url = action.parameters.get("source_url", "")
+            source_content = action.parameters.get("source_content", "")
+            description = action.parameters.get("description", "")
+            source = action.parameters.get("source", "Unknown")
+            keywords = action.parameters.get("keywords", [])
             
-            if action.parameters["use_llm"] and self.llm:
-                article = self._generate_with_llm(title)
+            if action.parameters["use_gemini"] and self.gemini_model:
+                article = self._generate_with_gemini(title, description, source_content, source, source_url, keywords)
             else:
-                article = self._generate_template(title)
+                article = self._generate_template(title, source, source_url, keywords)
             
             if article:
-                # Save generated article with metadata
+                # Save generated article
                 saved_path = self._save_article(title, article)
-                metadata = self._create_metadata(title, source_url, article)
-                self._save_metadata(title, metadata)
                 
                 result = {
                     "success": True,
@@ -168,12 +180,11 @@ class WriterAgent(BaseAgent):
                     "article": article,
                     "word_count": len(article.split()),
                     "path": str(saved_path),
-                    "method": "llm" if action.parameters["use_llm"] else "template",
-                    "source_url": source_url,
-                    "metadata": metadata
+                    "method": "gemini" if action.parameters["use_gemini"] else "template",
+                    "source_url": source_url
                 }
                 
-                # Store in memory with metadata
+                # Store in memory
                 self._store_generation_memory(result)
                 
                 # Learn from success
@@ -197,93 +208,173 @@ class WriterAgent(BaseAgent):
             "error": "Failed to generate article"
         }
     
-    def _generate_with_llm(self, title: str, source_content: str = "") -> str:
-        """Generate article using LLM"""
-        prompt = self._create_prompt(title, source_content)
-        
+    def _generate_with_gemini(self, title: str, description: str, source_content: str, 
+                             source: str, source_url: str, keywords: List[str]) -> str:
+        """Generate AI-rewritten article using Gemini API with agentic thinking patterns"""
         try:
-            response = self.llm(
-                prompt,
-                max_tokens=1000,
-                temperature=0.7,
-                top_p=0.9,
-                stop=["</article>", "\n\n\n"]
-            )
+            logger.info("🧠 STEP 1: Metacognitive Analysis - Understanding the task")
             
-            article = response["choices"][0]["text"].strip()
+            # STEP 1: THINK - Analyze what makes a good article (like NYT, BBC, Reuters)
+            analysis_prompt = f"""You are an expert content strategist at a top news organization (like NYT, BBC, Reuters).
+
+Analyze this news story and create a content strategy:
+
+Original Title: {title}
+Source: {source}
+Description: {description}
+Keywords: {', '.join(keywords[:5])}
+
+Think step-by-step:
+1. What's the CORE story here? (one sentence)
+2. What angle would make this compelling for readers?
+3. What's a better, more engaging title? (10 words max, clickable but not clickbait)
+4. What structure would work best? (inverted pyramid, narrative, analysis)
+5. What tone? (informative, analytical, urgent, explanatory)
+
+Provide your analysis in this format:
+CORE STORY: [one sentence]
+ANGLE: [the unique perspective]
+BETTER TITLE: [improved title]
+STRUCTURE: [article structure]
+TONE: [writing tone]"""
+
+            logger.info("🤔 Asking Gemini to analyze the story...")
+            analysis_response = self.gemini_model.generate_content(analysis_prompt)
+            analysis = analysis_response.text.strip()
+            logger.info(f"✅ Analysis complete:\n{analysis[:200]}...")
+            
+            # Extract the better title from analysis
+            better_title = title  # fallback
+            for line in analysis.split('\n'):
+                if line.startswith('BETTER TITLE:'):
+                    better_title = line.replace('BETTER TITLE:', '').strip()
+                    break
+            
+            logger.info(f"📝 Original title: {title}")
+            logger.info(f"✨ Improved title: {better_title}")
+            
+            # STEP 2: PLAN - Create article outline
+            outline_prompt = f"""Based on this analysis:
+
+{analysis}
+
+Original content preview: {source_content[:500]}
+
+Create a detailed outline for a 400-500 word article. Include:
+- Hook/Lead (what grabs attention)
+- 3-4 main points to cover
+- Key facts to include
+- Conclusion angle
+
+Format as:
+HOOK: [compelling opening]
+POINT 1: [main point]
+POINT 2: [main point]
+POINT 3: [main point]
+CONCLUSION: [takeaway]"""
+
+            logger.info("📋 Creating article outline...")
+            outline_response = self.gemini_model.generate_content(outline_prompt)
+            outline = outline_response.text.strip()
+            logger.info(f"✅ Outline created:\n{outline[:200]}...")
+            
+            # STEP 3: WRITE - Generate the actual article
+            writing_prompt = f"""You are a professional journalist at a top news organization.
+
+Write a complete, original article following this plan:
+
+TITLE: {better_title}
+ANALYSIS: {analysis}
+OUTLINE: {outline}
+
+CRITICAL RULES:
+1. Write in YOUR OWN WORDS - do NOT copy the source
+2. Make it engaging and readable (like NYT, BBC, Reuters style)
+3. Use active voice and clear language
+4. Include specific facts from the source
+5. 400-500 words
+6. Professional journalistic tone
+7. No fluff - every sentence adds value
+
+Write the article now (body only, no title):"""
+
+            logger.info("✍️  Writing the article...")
+            article_response = self.gemini_model.generate_content(writing_prompt)
+            article_body = article_response.text.strip()
+            logger.info(f"✅ Article written: {len(article_body.split())} words")
+            
+            # STEP 4: REVIEW - Self-critique and improve
+            review_prompt = f"""You are an editor at a top news organization.
+
+Review this article and suggest ONE specific improvement:
+
+TITLE: {better_title}
+ARTICLE: {article_body[:500]}...
+
+What's the ONE most important improvement? (be specific and brief)"""
+
+            logger.info("🔍 Self-reviewing the article...")
+            review_response = self.gemini_model.generate_content(review_prompt)
+            review = review_response.text.strip()
+            logger.info(f"💡 Self-critique: {review[:100]}...")
+            
+            # STEP 5: FORMAT - Create final markdown with attribution
+            article = f"""# {better_title}
+
+*Original story from {source} | AI-rewritten for clarity and engagement*
+
+{article_body}
+
+---
+
+**📰 Source & Attribution**  
+Original article: [{source}]({source_url})  
+Topics: {', '.join(keywords[:5])}  
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}
+
+*This article was rewritten by AI based on the original source. All facts and information are attributed to {source}. This is for educational and informational purposes.*
+"""
+            
+            word_count = len(article_body.split())
+            logger.info(f"✅ Final article: {word_count} words, title improved, professionally written")
+            
             return article
             
         except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
-            return self._generate_template(title)
+            logger.error(f"Gemini API generation failed: {e}")
+            logger.info("Falling back to template mode")
+            return self._generate_template(title, source, source_url, keywords)
     
-    def _create_prompt(self, title: str, source_content: str = "") -> str:
-        """Create prompt for LLM"""
-        if source_content:
-            prompt = f"""<s>[INST] You are a professional journalist. Write a comprehensive, well-structured article based on the following information.
-
-Title: {title}
-
-Source Information:
-{source_content[:1000]}
-
-Write a complete article (300-500 words) that:
-1. Has a compelling introduction
-2. Provides detailed information
-3. Maintains journalistic objectivity
-4. Includes relevant context
-5. Has a strong conclusion
-
-Article: [/INST]
-
-"""
-        else:
-            prompt = f"""<s>[INST] You are a professional journalist. Write a comprehensive article about the following topic.
-
-Title: {title}
-
-Write a complete article (300-500 words) that:
-1. Has a compelling introduction
-2. Provides detailed information
-3. Maintains journalistic objectivity
-4. Includes relevant context
-5. Has a strong conclusion
-
-Article: [/INST]
-
-"""
-        return prompt
-    
-    def _generate_template(self, title: str) -> str:
-        """Generate article using template (fallback)"""
+    def _generate_template(self, title: str, source: str = "Unknown", 
+                          source_url: str = "", keywords: List[str] = []) -> str:
+        """Generate article using template (fallback when Gemini unavailable)"""
         article = f"""# {title}
 
-## Introduction
+*News summary from {source}*
 
-This article explores the topic of "{title}", examining its key aspects and implications.
+## Overview
 
-## Background
-
-The subject has gained significant attention recently, with various stakeholders weighing in on its importance and potential impact.
+This article discusses {title.lower()}, covering key developments and implications in this area.
 
 ## Key Points
 
-Several important factors contribute to understanding this topic:
+Recent reports indicate significant developments related to this topic. The situation continues to evolve as stakeholders monitor the latest updates.
 
-1. **Context**: The broader context surrounding this development
-2. **Implications**: What this means for various stakeholders
-3. **Future Outlook**: Potential developments and trends
+## Context
 
-## Analysis
+Understanding the broader context helps frame the importance of these developments and their potential impact on various sectors.
 
-Experts suggest that this topic represents an important development in its field. The various perspectives and considerations highlight the complexity of the issue.
+## Looking Ahead
 
-## Conclusion
-
-As this situation continues to evolve, it will be important to monitor developments and understand the broader implications for all involved parties.
+As this story develops, further updates and analysis will provide additional clarity on the implications and next steps.
 
 ---
-*This article was generated by an AI system for informational purposes.*
+
+**Source Attribution:**  
+Original article: [{source}]({source_url})  
+Keywords: {', '.join(keywords[:5])}  
+
+*This is a summary based on news from {source}. Visit the original source for complete details.*
 """
         return article
     

@@ -196,122 +196,17 @@ class Orchestrator:
             }
     
     def _save_analyzed_articles(self, analyses: List[Dict]) -> List[Dict]:
-        """Save analyzed articles with descriptions from NewsAPI (grounded content)"""
+        """Use Writer agent to generate AI-rewritten articles (NOT copying!)"""
         print(f"\n🔧 _save_analyzed_articles called with {len(analyses)} articles")
-        results = []
+        print("🤖 Using Writer Agent with Gemini API to rewrite content")
         
-        # Get list of existing article titles to avoid duplicates
-        print("🔍 Checking for existing articles...")
-        existing_titles = self._get_existing_article_titles()
-        print(f"📋 Found {len(existing_titles)} existing articles on site")
+        logger.info(f"🤖 Using Writer Agent to generate {len(analyses)} articles")
         
-        logger.info(f"📋 Found {len(existing_titles)} existing articles on site")
-        if existing_titles:
-            print(f"📋 Existing titles: {existing_titles[:3]}...")
-            logger.info(f"📋 Existing titles: {existing_titles[:3]}...")  # Show first 3
+        # Use the Writer agent to generate articles
+        # This will use Gemini API to rewrite content (not copy!)
+        results = self.writer.generate_batch(analyses)
         
-        print(f"📝 Processing {len(analyses)} articles for saving")
-        logger.info(f"📝 Processing {len(analyses)} articles for saving")
-        
-        for i, article_data in enumerate(analyses, 1):
-            try:
-                # Extract article info from analysis
-                title = article_data.get("title", "Untitled")
-                description = article_data.get("description", "")
-                content = article_data.get("content", "")
-                url = article_data.get("url", "")
-                source = article_data.get("source", "Unknown")
-                published_at = article_data.get("published_at", "")
-                keywords = article_data.get("keywords", [])
-                query = article_data.get("query", "")
-                
-                print(f"[{i}/{len(analyses)}] Processing: {title[:60]}...")
-                logger.info(f"[{i}/{len(analyses)}] Processing: {title[:60]}...")
-                
-                if not title:
-                    print(f"[{i}/{len(analyses)}] ❌ No title found")
-                    logger.warning(f"[{i}/{len(analyses)}] ❌ No title found")
-                    results.append({"success": False, "error": "No title"})
-                    continue
-                
-                # Check if article already exists on site
-                if self._is_duplicate_title(title, existing_titles):
-                    print(f"[{i}/{len(analyses)}] ⏭️  Skipping duplicate: {title[:50]}...")
-                    logger.info(f"[{i}/{len(analyses)}] ⏭️  Skipping duplicate: {title[:50]}...")
-                    results.append({"success": False, "error": "Duplicate article already on site"})
-                    continue
-                
-                # Create markdown content with REAL article data from NewsAPI
-                markdown = f"""# {title}
-
-**Source:** {source}  
-**Published:** {published_at}  
-**URL:** {url}  
-**Keywords:** {', '.join(keywords[:10])}
-
----
-
-## Summary
-
-{description if description else "No description available."}
-
----
-
-## Content Preview
-
-{content if content else "Full content available at source URL."}
-
----
-
-## Key Topics
-
-"""
-                
-                # Add keyword sections
-                for i, keyword in enumerate(keywords[:5], 1):
-                    markdown += f"{i}. **{keyword.title()}**\n"
-                
-                markdown += f"""
-
----
-
-*This article was automatically curated from {source}.*  
-*Original article: {url}*  
-*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}*
-"""
-                
-                # Save to file
-                filename = self._sanitize_filename(title)
-                filepath = settings.generated_articles_dir / f"{filename}.md"
-                
-                print(f"[{i}/{len(analyses)}] 💾 Saving to: {filepath.name}")
-                
-                # Ensure directory exists
-                settings.generated_articles_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Write file
-                filepath.write_text(markdown, encoding='utf-8')
-                
-                print(f"[{i}/{len(analyses)}] ✅ File written successfully!")
-                
-                # Add to existing titles list to prevent duplicates within this batch
-                existing_titles.append(title)
-                
-                results.append({
-                    "success": True,
-                    "title": title,
-                    "filename": str(filepath)
-                })
-                
-                print(f"[{i}/{len(analyses)}] ✅ Saved: {title[:60]}...")
-                logger.info(f"[{i}/{len(analyses)}] ✅ Saved: {title[:60]}...")
-                
-            except Exception as e:
-                print(f"[{i}/{len(analyses)}] ❌ Error saving article: {e}")
-                logger.error(f"[{i}/{len(analyses)}] ❌ Error saving article: {e}")
-                results.append({"success": False, "error": str(e)})
-        
-        print(f"\n🏁 _save_analyzed_articles completed: {len(results)} results")
+        print(f"\n🏁 Writer agent completed: {len(results)} results")
         return results
     
     def _sanitize_filename(self, title: str) -> str:
