@@ -137,7 +137,7 @@ class CollectorAgent(BaseAgent):
             "action": "collect_titles",
             "category": category,
             "success": result["success"],
-            "efficiency": len(unique_titles) / max(1, len(titles))
+            "efficiency": len(unique_articles) / max(1, len(titles))
         })
         
         return result
