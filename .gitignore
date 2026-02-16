@@ -47,7 +47,7 @@ logs/
 # Data & Generated Content
 memory_store/
 articles/
-generated_articles/
+# generated_articles/ - REMOVED: We want to commit generated articles!
 models/
 
 # OS
