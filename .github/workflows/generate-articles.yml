@@ -22,6 +22,9 @@ jobs:
   generate-articles:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: write  # Required to push commits
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
