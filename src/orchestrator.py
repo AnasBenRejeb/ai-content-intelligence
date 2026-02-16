@@ -42,31 +42,66 @@ class Orchestrator:
     def run_pipeline(self) -> Dict[str, Any]:
         """Execute the full news intelligence pipeline"""
         start_time = datetime.now()
+        logger.info("=" * 80)
         logger.info("🚀 Starting multi-agent news intelligence pipeline")
+        logger.info("=" * 80)
         
         try:
             # Phase 1: Collection
-            logger.info("📰 Phase 1: Collecting news articles with descriptions")
+            logger.info("")
+            logger.info("📰 PHASE 1: COLLECTION")
+            logger.info("-" * 80)
+            logger.info(f"Categories to collect: {settings.categories}")
+            logger.info(f"Pages per category: {settings.pages_per_category}")
+            logger.info(f"Page size: {settings.page_size}")
+            
             collected = self.collector.collect_all_categories()
             
             all_articles = []
             for category, articles in collected.items():
+                logger.info(f"  Category '{category}': {len(articles)} articles")
                 all_articles.extend(articles)
             
-            logger.info(f"✅ Collected {len(all_articles)} unique articles")
+            logger.info(f"✅ Total collected: {len(all_articles)} unique articles")
+            logger.info(f"Sample article: {all_articles[0] if all_articles else 'None'}")
             
             # Phase 2: Analysis
-            logger.info("🔍 Phase 2: Analyzing articles and extracting keywords")
-            analyses = self.analyzer.analyze_batch(all_articles[:50])  # Limit for demo
+            logger.info("")
+            logger.info("🔍 PHASE 2: ANALYSIS")
+            logger.info("-" * 80)
+            logger.info(f"Analyzing first {min(50, len(all_articles))} articles")
+            
+            analyses = self.analyzer.analyze_batch(all_articles[:50])
             
             successful_analyses = [a for a in analyses if a.get("success")]
-            logger.info(f"✅ Analyzed {len(successful_analyses)} titles")
+            failed_analyses = [a for a in analyses if not a.get("success")]
             
-            # Phase 3: SKIP RETRIEVAL - Save analyzed titles directly as articles
-            logger.info("💾 Phase 3: Saving analyzed titles as articles (retrieval skipped)")
+            logger.info(f"✅ Successfully analyzed: {len(successful_analyses)}")
+            logger.info(f"❌ Failed analysis: {len(failed_analyses)}")
+            if successful_analyses:
+                logger.info(f"Sample analysis: {successful_analyses[0]}")
+            if failed_analyses:
+                logger.info(f"Sample failure: {failed_analyses[0]}")
+            
+            # Phase 3: Save (NEW LOGIC!)
+            logger.info("")
+            logger.info("💾 PHASE 3: SAVING ARTICLES")
+            logger.info("-" * 80)
+            logger.info(f"Attempting to save {len(successful_analyses[:20])} analyzed articles")
+            
             generated = self._save_analyzed_articles(successful_analyses[:20])
+            
             successful_generations = [g for g in generated if g.get("success")]
-            logger.info(f"✅ Saved {len(successful_generations)} articles")
+            failed_generations = [g for g in generated if not g.get("success")]
+            
+            logger.info("")
+            logger.info(f"✅ Successfully saved: {len(successful_generations)} articles")
+            logger.info(f"❌ Failed/Skipped: {len(failed_generations)} articles")
+            
+            if failed_generations:
+                logger.info("Failed/Skipped reasons:")
+                for i, fail in enumerate(failed_generations[:5], 1):
+                    logger.info(f"  {i}. {fail.get('error', 'Unknown error')}")
             
             # Set retrieved count to match generated for metrics
             successful_retrievals = successful_generations
@@ -114,9 +149,13 @@ class Orchestrator:
         
         # Get list of existing article titles to avoid duplicates
         existing_titles = self._get_existing_article_titles()
-        logger.info(f"Found {len(existing_titles)} existing articles on site")
+        logger.info(f"📋 Found {len(existing_titles)} existing articles on site")
+        if existing_titles:
+            logger.info(f"📋 Existing titles: {existing_titles[:3]}...")  # Show first 3
         
-        for article_data in analyses:
+        logger.info(f"📝 Processing {len(analyses)} articles for saving")
+        
+        for i, article_data in enumerate(analyses, 1):
             try:
                 # Extract article info from analysis
                 title = article_data.get("title", "Untitled")
@@ -128,13 +167,16 @@ class Orchestrator:
                 keywords = article_data.get("keywords", [])
                 query = article_data.get("query", "")
                 
+                logger.info(f"[{i}/{len(analyses)}] Processing: {title[:60]}...")
+                
                 if not title:
+                    logger.warning(f"[{i}/{len(analyses)}] ❌ No title found")
                     results.append({"success": False, "error": "No title"})
                     continue
                 
                 # Check if article already exists on site
                 if self._is_duplicate_title(title, existing_titles):
-                    logger.info(f"⏭️  Skipping duplicate: {title[:50]}...")
+                    logger.info(f"[{i}/{len(analyses)}] ⏭️  Skipping duplicate: {title[:50]}...")
                     results.append({"success": False, "error": "Duplicate article already on site"})
                     continue
                 
@@ -187,16 +229,19 @@ class Orchestrator:
                 # Write file
                 filepath.write_text(markdown, encoding='utf-8')
                 
+                # Add to existing titles list to prevent duplicates within this batch
+                existing_titles.append(title)
+                
                 results.append({
                     "success": True,
                     "title": title,
                     "filename": str(filepath)
                 })
                 
-                logger.info(f"💾 Saved article: {title}")
+                logger.info(f"[{i}/{len(analyses)}] ✅ Saved: {title[:60]}...")
                 
             except Exception as e:
-                logger.error(f"Error saving article: {e}")
+                logger.error(f"[{i}/{len(analyses)}] ❌ Error saving article: {e}")
                 results.append({"success": False, "error": str(e)})
         
         return results
