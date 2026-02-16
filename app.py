@@ -131,12 +131,22 @@ def blog():
 def api_articles():
     """API endpoint for articles - NO USER DATA EXPOSED"""
     try:
-        articles_dir = Path('generated_articles')
+        # Use absolute path relative to this file
+        base_dir = Path(__file__).parent
+        articles_dir = base_dir / 'generated_articles'
+        
+        logger.info(f"Looking for articles in: {articles_dir.absolute()}")
+        logger.info(f"Directory exists: {articles_dir.exists()}")
+        
         if not articles_dir.exists():
-            return jsonify({'articles': [], 'count': 0})
+            logger.warning(f"Articles directory not found at {articles_dir.absolute()}")
+            return jsonify({'articles': [], 'count': 0, 'debug': str(articles_dir.absolute())})
         
         articles = []
-        for article_file in list(articles_dir.glob('*.md'))[:20]:  # Limit to 20
+        article_files = list(articles_dir.glob('*.md'))
+        logger.info(f"Found {len(article_files)} article files")
+        
+        for article_file in article_files[:20]:  # Limit to 20
             try:
                 content = article_file.read_text(encoding='utf-8')
                 lines = content.split('\n')
@@ -172,7 +182,8 @@ def api_articles():
 def api_stats():
     """System statistics API"""
     try:
-        articles_dir = Path('generated_articles')
+        base_dir = Path(__file__).parent
+        articles_dir = base_dir / 'generated_articles'
         article_count = len(list(articles_dir.glob('*.md'))) if articles_dir.exists() else 0
         
         return jsonify({
