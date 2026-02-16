@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings
 from pathlib import Path
 from typing import List
 
+# Trigger AI workflow
+
 
 class Settings(BaseSettings):
     """Application settings"""
