@@ -169,6 +169,8 @@ class Orchestrator:
             print("=" * 80 + "\n")
             
             logger.info(f"✨ Pipeline completed in {execution_time:.2f}s")
+            
+            result = {
                 "success": True,
                 "execution_time": execution_time,
                 "collected_count": len(all_articles),
