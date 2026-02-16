@@ -112,6 +112,10 @@ class Orchestrator:
         """Save analyzed articles with descriptions from NewsAPI (grounded content)"""
         results = []
         
+        # Get list of existing article titles to avoid duplicates
+        existing_titles = self._get_existing_article_titles()
+        logger.info(f"Found {len(existing_titles)} existing articles on site")
+        
         for article_data in analyses:
             try:
                 # Extract article info from analysis
@@ -126,6 +130,12 @@ class Orchestrator:
                 
                 if not title:
                     results.append({"success": False, "error": "No title"})
+                    continue
+                
+                # Check if article already exists on site
+                if self._is_duplicate_title(title, existing_titles):
+                    logger.info(f"⏭️  Skipping duplicate: {title[:50]}...")
+                    results.append({"success": False, "error": "Duplicate article already on site"})
                     continue
                 
                 # Create markdown content with REAL article data from NewsAPI
@@ -204,6 +214,40 @@ class Orchestrator:
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{safe}_{timestamp}"
+    
+    def _get_existing_article_titles(self) -> List[str]:
+        """Get titles of all existing articles on the site"""
+        existing_titles = []
+        
+        if not settings.generated_articles_dir.exists():
+            return existing_titles
+        
+        # Read all markdown files in generated_articles directory
+        for filepath in settings.generated_articles_dir.glob("*.md"):
+            try:
+                content = filepath.read_text(encoding='utf-8')
+                # Extract title from markdown (first line starting with #)
+                lines = content.split('\n')
+                for line in lines:
+                    if line.startswith('# '):
+                        title = line[2:].strip()
+                        existing_titles.append(title)
+                        break
+            except Exception as e:
+                logger.warning(f"Error reading {filepath}: {e}")
+        
+        return existing_titles
+    
+    def _is_duplicate_title(self, new_title: str, existing_titles: List[str]) -> bool:
+        """Check if title is duplicate using fuzzy matching"""
+        from rapidfuzz import fuzz
+        
+        for existing_title in existing_titles:
+            similarity = fuzz.token_sort_ratio(new_title, existing_title)
+            if similarity >= settings.similarity_threshold:
+                return True
+        
+        return False
     
     def _reflect_on_execution(self, collected: Dict, analyses: List, generated: List, _unused: List = []):
         """Metacognitive reflection on pipeline execution"""
