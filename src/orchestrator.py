@@ -184,9 +184,7 @@ class Orchestrator:
             # Store execution in memory
             self._store_execution(result)
             
-            logger.info(f"✨ Pipeline completed in {execution_time:.2f}s")
-            
-            result = {
+            return result
             
         except Exception as e:
             logger.error(f"❌ Pipeline failed: {e}")
