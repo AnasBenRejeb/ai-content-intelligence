@@ -98,26 +98,38 @@ class CollectorAgent(BaseAgent):
                 
                 for article in articles:
                     title = article.get("title")
+                    description = article.get("description", "")
+                    content = article.get("content", "")
+                    url = article.get("url", "")
                     source_name = article.get("source", {}).get("name", "")
+                    published_at = article.get("publishedAt", "")
                     
                     if title:
-                        cleaned = self._clean_title(title, source_name)
-                        if self._is_english(cleaned):
-                            titles.append(cleaned)
+                        cleaned_title = self._clean_title(title, source_name)
+                        if self._is_english(cleaned_title):
+                            # Store full article data, not just title
+                            titles.append({
+                                "title": cleaned_title,
+                                "description": description,
+                                "content": content,
+                                "url": url,
+                                "source": source_name,
+                                "published_at": published_at
+                            })
                 
             except Exception as e:
                 logger.error(f"Error fetching page {page} for {category}: {e}")
                 break
         
         # Deduplicate
-        unique_titles = self._deduplicate(titles)
+        unique_articles = self._deduplicate(titles)
         
         result = {
-            "success": len(unique_titles) > 0,
+            "success": len(unique_articles) > 0,
             "category": category,
             "raw_count": len(titles),
-            "unique_count": len(unique_titles),
-            "titles": unique_titles
+            "unique_count": len(unique_articles),
+            "articles": unique_articles  # Changed from "titles" to "articles"
         }
         
         # Learn from this experience
@@ -143,17 +155,18 @@ class CollectorAgent(BaseAgent):
         except:
             return False
     
-    def _deduplicate(self, titles: List[str]) -> List[str]:
-        """Deduplicate similar titles"""
+    def _deduplicate(self, articles: List[Dict]) -> List[Dict]:
+        """Deduplicate similar articles based on titles"""
         unique = []
-        for title in titles:
-            if not any(fuzz.token_sort_ratio(title, existing) >= settings.similarity_threshold 
+        for article in articles:
+            title = article["title"]
+            if not any(fuzz.token_sort_ratio(title, existing["title"]) >= settings.similarity_threshold 
                       for existing in unique):
-                unique.append(title)
+                unique.append(article)
         return unique
     
-    def collect_all_categories(self) -> Dict[str, List[str]]:
-        """Collect titles from all categories"""
+    def collect_all_categories(self) -> Dict[str, List[Dict]]:
+        """Collect articles from all categories"""
         all_results = {}
         
         for category in self.categories:
@@ -164,8 +177,8 @@ class CollectorAgent(BaseAgent):
             result = self.act(thought)
             
             if result["success"]:
-                all_results[category] = result["titles"]
-                logger.info(f"Collected {result['unique_count']} titles from {category}")
+                all_results[category] = result["articles"]  # Changed from "titles"
+                logger.info(f"Collected {result['unique_count']} articles from {category}")
             
             # Periodic reflection
             if len(self.actions_taken) % settings.reflection_interval == 0:

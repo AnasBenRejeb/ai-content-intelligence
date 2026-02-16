@@ -46,18 +46,18 @@ class Orchestrator:
         
         try:
             # Phase 1: Collection
-            logger.info("📰 Phase 1: Collecting news titles")
+            logger.info("📰 Phase 1: Collecting news articles with descriptions")
             collected = self.collector.collect_all_categories()
             
-            all_titles = []
-            for category, titles in collected.items():
-                all_titles.extend(titles)
+            all_articles = []
+            for category, articles in collected.items():
+                all_articles.extend(articles)
             
-            logger.info(f"✅ Collected {len(all_titles)} unique titles")
+            logger.info(f"✅ Collected {len(all_articles)} unique articles")
             
             # Phase 2: Analysis
-            logger.info("🔍 Phase 2: Analyzing titles and extracting keywords")
-            analyses = self.analyzer.analyze_batch(all_titles[:50])  # Limit for demo
+            logger.info("🔍 Phase 2: Analyzing articles and extracting keywords")
+            analyses = self.analyzer.analyze_batch(all_articles[:50])  # Limit for demo
             
             successful_analyses = [a for a in analyses if a.get("success")]
             logger.info(f"✅ Analyzed {len(successful_analyses)} titles")
@@ -77,7 +77,7 @@ class Orchestrator:
             # Update metrics
             self.performance_metrics["total_runs"] += 1
             self.performance_metrics["successful_runs"] += 1
-            self.performance_metrics["total_articles_collected"] += len(all_titles)
+            self.performance_metrics["total_articles_collected"] += len(all_articles)
             self.performance_metrics["total_articles_retrieved"] += len(successful_generations)  # Now same as generated
             
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -85,7 +85,7 @@ class Orchestrator:
             result = {
                 "success": True,
                 "execution_time": execution_time,
-                "collected_count": len(all_titles),
+                "collected_count": len(all_articles),
                 "analyzed_count": len(successful_analyses),
                 "retrieved_count": len(successful_generations),  # Same as generated now
                 "generated_count": len(successful_generations),
@@ -109,13 +109,18 @@ class Orchestrator:
             }
     
     def _save_analyzed_articles(self, analyses: List[Dict]) -> List[Dict]:
-        """Save analyzed articles directly from title analysis (no retrieval needed)"""
+        """Save analyzed articles with descriptions from NewsAPI (grounded content)"""
         results = []
         
         for article_data in analyses:
             try:
                 # Extract article info from analysis
                 title = article_data.get("title", "Untitled")
+                description = article_data.get("description", "")
+                content = article_data.get("content", "")
+                url = article_data.get("url", "")
+                source = article_data.get("source", "Unknown")
+                published_at = article_data.get("published_at", "")
                 keywords = article_data.get("keywords", [])
                 query = article_data.get("query", "")
                 
@@ -123,18 +128,27 @@ class Orchestrator:
                     results.append({"success": False, "error": "No title"})
                     continue
                 
-                # Create markdown content with title and keywords
+                # Create markdown content with REAL article data from NewsAPI
                 markdown = f"""# {title}
 
-**Keywords:** {', '.join(keywords[:10])}  
-**Search Query:** {query}  
-**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+**Source:** {source}  
+**Published:** {published_at}  
+**URL:** {url}  
+**Keywords:** {', '.join(keywords[:10])}
 
 ---
 
 ## Summary
 
-This article covers topics related to: {', '.join(keywords[:5])}.
+{description if description else "No description available."}
+
+---
+
+## Content Preview
+
+{content if content else "Full content available at source URL."}
+
+---
 
 ## Key Topics
 
@@ -148,8 +162,9 @@ This article covers topics related to: {', '.join(keywords[:5])}.
 
 ---
 
-*This article was automatically curated and analyzed by AI Content Intelligence Platform.*  
-*Source: NewsAPI | Category: Technology/Business*
+*This article was automatically curated from {source}.*  
+*Original article: {url}*  
+*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}*
 """
                 
                 # Save to file

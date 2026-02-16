@@ -124,16 +124,24 @@ class AnalyzerAgent(BaseAgent):
                 "error": str(e)
             }
     
-    def analyze_batch(self, titles: List[str]) -> List[Dict[str, Any]]:
-        """Analyze a batch of titles"""
+    def analyze_batch(self, articles: List[Dict]) -> List[Dict[str, Any]]:
+        """Analyze a batch of articles"""
         results = []
         
-        for i, title in enumerate(titles):
+        for i, article in enumerate(articles):
             # Think about the analysis
-            thought = self.think({"title": title})
+            thought = self.think({"title": article["title"]})
             
             # Execute analysis
             result = self.act(thought)
+            
+            # Add the original article data to the result
+            result["description"] = article.get("description", "")
+            result["content"] = article.get("content", "")
+            result["url"] = article.get("url", "")
+            result["source"] = article.get("source", "")
+            result["published_at"] = article.get("published_at", "")
+            
             results.append(result)
             
             # Periodic reflection
