@@ -1,0 +1,27 @@
+# Marathon dev Bungie already "knows where we want to take the story over the next few years"
+
+*News summary from Unknown*
+
+## Overview
+
+This article discusses marathon dev bungie already "knows where we want to take the story over the next few years", covering key developments and implications in this area.
+
+## Key Points
+
+Recent reports indicate significant developments related to this topic. The situation continues to evolve as stakeholders monitor the latest updates.
+
+## Context
+
+Understanding the broader context helps frame the importance of these developments and their potential impact on various sectors.
+
+## Looking Ahead
+
+As this story develops, further updates and analysis will provide additional clarity on the implications and next steps.
+
+---
+
+**Source Attribution:**  
+Original article: [Unknown](https://www.eurogamer.net/marathon-dev-bungie-already-knows-where-we-want-to-take-the-story-over-the-next-few-years)  
+Keywords:   
+
+*This is a summary based on news from Unknown. Visit the original source for complete details.*
