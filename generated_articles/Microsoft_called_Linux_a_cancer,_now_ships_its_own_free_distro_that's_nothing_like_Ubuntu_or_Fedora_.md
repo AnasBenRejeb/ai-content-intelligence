@@ -1,0 +1,18 @@
+# Microsoft called Linux a cancer, now ships its own free distro that's nothing like Ubuntu or Fedora - Windows Latest
+
+*Satirical Commentary | Original story from Unknown*
+
+Satire:
+
+Microsoft called Linux a cancer, now ships its own free distro that's nothing like Ubuntu or Fedora - Windows Latest
+
+Twenty-five years ago, Microsoft's CEO, Steve Ballmer, called “Linux a cancer that attaches itself in an intellectual property sense to everything it touches.” At Build 2026 in June, the same company announced its own Linux distribution called Windows Latest. The Linux community was quick to call this out as a marketing stunt, but the company has now upped the ante. In the last two years alone, Microsoft has released a series of operating systems designed to rival Linux in terms of features, speed, and quality. The Windows Latest distribution has been available in beta form since November 2020, and it's now available to the public. Microsoft's Windows Latest is available in three flavors: Core, Desktop, and Mobile. The Core version of Windows Latest is based on the same Windows 10 kernel as the core of Windows 10 and 11. This is an important distinction for users who want to retain some compatibility with older Windows apps. Core Windows Latest also has a number of built-in features that Linux has long been known for. Core Windows Latest has a built-in version of the Microsoft Edge browser, for example. Edge is the same browser that comes with Windows 10. The desktop version of Windows Latest also has the same features as Windows 10. The mobile version of Windows Latest doesn't have a standalone version of Microsoft Edge, but it does have the same features as Windows Mobile 10. With these features, Microsoft has set itself up as a serious contender in the Linux world. In fact, Microsoft is now the largest contributor to the Linux kernel, with over 10,000 commits. Microsoft's Linux distribution, Core Windows Latest, is available now in the Microsoft Store. You can install it on either your desktop, your tablet, or your laptop, depending on your needs. With Windows Latest, you get the choice of either a desktop or a tablet experience. Microsoft will continue to provide bug fixes and security updates for Windows Latest. Microsoft is also working on a standalone version of Windows 10, which will be available in the coming weeks. But for now, Microsoft's Windows Latest is your best bet for running Linux on a modern PC. It's not without its flaws, though. The biggest issue is compatibility with some older Linux distros. It also doesn't have the best user experience for those who are used to Windows. But if you're looking for an alternative to Windows, then Windows Latest may be worth considering. Who should use Windows Latest? If you're a Windows user, you'll need to use Windows Latest for the desktop version. If you're a Linux user looking for a way to run Linux on your PC, then Windows Latest will be your best bet. If you're a developer who needs a Windows desktop for your work, then Windows Latest should be your choice. What is Microsoft's Windows Latest and what features does it have compared to the previous versions of Windows?
+
+---
+
+**📰 Source & Attribution**  
+Original article: [Unknown](https://www.windowslatest.com/2026/06/29/microsoft-called-linux-a-cancer-now-ships-its-own-free-distro-thats-nothing-like-ubuntu-or-fedora/)  
+Topics:   
+Generated: 2026-06-30 11:54 UTC
+
+*This is a satirical/sarcastic commentary based on real news from Unknown. All facts are attributed to the original source. This content is for entertainment and commentary purposes.*
